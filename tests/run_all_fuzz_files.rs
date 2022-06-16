@@ -23,7 +23,6 @@ fn parse_dir(name: &str) {
 
 fn parse_file(entry: &DirEntry) -> std::io::Result<()> {
     let path = entry.path();
-    // println!("{:?}", entry.path());
     let data = fs::read(path).unwrap();
     let _ = parse_x509_certificate(&data);
     Ok(())

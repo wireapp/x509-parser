@@ -12,6 +12,10 @@ use der_parser::der::*;
 use der_parser::oid::Oid;
 use der_parser::*;
 use nom::Offset;
+#[cfg(feature = "verify")]
+use oid_registry::*;
+#[cfg(feature = "verify")]
+use ring::signature::VerificationAlgorithm;
 use std::collections::HashMap;
 
 /// Certification Signing Request (CSR)
@@ -41,13 +45,76 @@ impl<'a> X509CertificationRequest<'a> {
     /// requesting the certification for this verification to succeed.
     #[cfg(feature = "verify")]
     pub fn verify_signature(&self) -> Result<(), X509Error> {
+        use ring::signature;
         let spki = &self.certification_request_info.subject_pki;
-        verify_signature(
-            spki,
-            &self.signature_algorithm,
-            &self.signature_value,
-            self.certification_request_info.raw,
-        )
+        let signature_alg = &self.signature_algorithm.algorithm;
+        // identify verification algorithm
+        let verification_alg: &dyn VerificationAlgorithm =
+            if *signature_alg == OID_PKCS1_SHA1WITHRSA {
+                #[cfg(not(target_family = "wasm"))]
+                {
+                    &signature::RSA_PKCS1_1024_8192_SHA1_FOR_LEGACY_USE_ONLY
+                }
+                #[cfg(target_family = "wasm")]
+                {
+                    return Err(X509Error::SignatureUnsupportedAlgorithm);
+                }
+            } else if *signature_alg == OID_PKCS1_SHA256WITHRSA {
+                #[cfg(not(target_family = "wasm"))]
+                {
+                    &signature::RSA_PKCS1_2048_8192_SHA256
+                }
+                #[cfg(target_family = "wasm")]
+                {
+                    return Err(X509Error::SignatureUnsupportedAlgorithm);
+                }
+            } else if *signature_alg == OID_PKCS1_SHA384WITHRSA {
+                #[cfg(not(target_family = "wasm"))]
+                {
+                    &signature::RSA_PKCS1_2048_8192_SHA384
+                }
+                #[cfg(target_family = "wasm")]
+                {
+                    return Err(X509Error::SignatureUnsupportedAlgorithm);
+                }
+            } else if *signature_alg == OID_PKCS1_SHA512WITHRSA {
+                #[cfg(not(target_family = "wasm"))]
+                {
+                    &signature::RSA_PKCS1_2048_8192_SHA512
+                }
+                #[cfg(target_family = "wasm")]
+                {
+                    return Err(X509Error::SignatureUnsupportedAlgorithm);
+                }
+            } else if *signature_alg == OID_SIG_ECDSA_WITH_SHA256 {
+                #[cfg(not(target_family = "wasm"))]
+                {
+                    &signature::ECDSA_P256_SHA256_ASN1
+                }
+                #[cfg(target_family = "wasm")]
+                {
+                    return Err(X509Error::SignatureUnsupportedAlgorithm);
+                }
+            } else if *signature_alg == OID_SIG_ECDSA_WITH_SHA384 {
+                #[cfg(not(target_family = "wasm"))]
+                {
+                    &signature::ECDSA_P384_SHA384_ASN1
+                }
+                #[cfg(target_family = "wasm")]
+                {
+                    return Err(X509Error::SignatureUnsupportedAlgorithm);
+                }
+            } else if *signature_alg == OID_SIG_ED25519 {
+                &signature::ED25519
+            } else {
+                return Err(X509Error::SignatureUnsupportedAlgorithm);
+            };
+        // get public key
+        let key = signature::UnparsedPublicKey::new(verification_alg, spki.subject_public_key.data);
+        // verify signature
+        let sig = self.signature_value.data;
+        key.verify(self.certification_request_info.raw, sig)
+            .or(Err(X509Error::SignatureVerificationError))
     }
 }
 

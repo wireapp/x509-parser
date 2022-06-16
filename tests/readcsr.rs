@@ -1,11 +1,15 @@
 use oid_registry::{OID_PKCS1_SHA256WITHRSA, OID_SIG_ECDSA_WITH_SHA256, OID_X509_COMMON_NAME};
+use wasm_bindgen_test::*;
 use x509_parser::prelude::*;
+
+wasm_bindgen_test_configure!(run_in_browser);
 
 const CSR_DATA_EMPTY_ATTRIB: &[u8] = include_bytes!("../assets/csr-empty-attributes.csr");
 const CSR_DATA: &[u8] = include_bytes!("../assets/test.csr");
 const CSR_CHALLENGE_PASSWORD: &[u8] = include_bytes!("../assets/csr-challenge-password.pem");
 
 #[test]
+#[wasm_bindgen_test]
 fn read_csr_empty_attrib() {
     let (rem, csr) =
         X509CertificationRequest::from_der(CSR_DATA_EMPTY_ATTRIB).expect("could not parse CSR");
@@ -18,6 +22,7 @@ fn read_csr_empty_attrib() {
 }
 
 #[test]
+#[wasm_bindgen_test]
 fn read_csr_with_san() {
     let der = pem::parse_x509_pem(CSR_DATA).unwrap().1;
     let (rem, csr) =
@@ -80,6 +85,8 @@ fn read_csr_with_challenge_password() {
     assert!(found_san);
 }
 
+// TODO: does not work in WASM for any signature alg except ed25519...but we don't need anything else ATM
+// #[wasm_bindgen_test]
 #[cfg(feature = "verify")]
 #[test]
 fn read_csr_verify() {

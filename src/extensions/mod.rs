@@ -1176,7 +1176,11 @@ fn der_read_critical(i: &[u8]) -> BerResult<bool> {
 mod tests {
     use super::*;
 
+    use wasm_bindgen_test::*;
+    wasm_bindgen_test_configure!(run_in_browser);
+
     #[test]
+    #[wasm_bindgen_test]
     fn test_keyusage_flags() {
         let ku = KeyUsage { flags: 98 };
         assert!(!ku.digital_signature());
@@ -1191,6 +1195,7 @@ mod tests {
     }
 
     #[test]
+    #[wasm_bindgen_test]
     fn test_extensions1() {
         use der_parser::oid;
         let crt = crate::parse_x509_certificate(include_bytes!("../../assets/extension1.der"))
@@ -1308,6 +1313,7 @@ mod tests {
     }
 
     #[test]
+    #[wasm_bindgen_test]
     fn test_extensions2() {
         use der_parser::oid;
         let crt = crate::parse_x509_certificate(include_bytes!("../../assets/extension2.der"))
@@ -1341,6 +1347,7 @@ mod tests {
     }
 
     #[test]
+    #[wasm_bindgen_test]
     fn test_extensions_crl_distribution_points() {
         // Extension not present
         {
