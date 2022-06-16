@@ -1,10 +1,12 @@
-use ::time::macros::datetime;
-use ::time::OffsetDateTime;
+use chrono::{DateTime, Datelike, NaiveDateTime, TimeZone, Utc};
 use der_parser::oid;
 use nom::Parser;
 use oid_registry::*;
 use std::collections::HashMap;
+use wasm_bindgen_test::*;
 use x509_parser::prelude::*;
+
+wasm_bindgen_test_configure!(run_in_browser);
 
 static IGCA_DER: &[u8] = include_bytes!("../assets/IGC_A.der");
 static NO_EXTENSIONS_DER: &[u8] = include_bytes!("../assets/no_extensions.der");
@@ -16,11 +18,10 @@ static DUPLICATE_VALUE_IN_AIA: &[u8] =
     include_bytes!("../assets/duplicate_value_in_authority_info_access.der");
 
 #[test]
+#[wasm_bindgen_test]
 fn test_x509_parser() {
     let empty = &b""[..];
-    //assert_eq!(x509_parser(IGCA_DER), IResult::Done(empty, (1)));
     let res = parse_x509_certificate(IGCA_DER);
-    // println!("res: {:?}", res);
     match res {
         Ok((e, cert)) => {
             assert_eq!(e, empty);
@@ -39,7 +40,7 @@ fn test_x509_parser() {
                 .iter_common_name()
                 .map(|attr| attr.as_str())
                 .collect();
-            assert_eq!(cn_list, Ok(vec!["IGC/A"]));
+            assert_eq!(cn_list.unwrap(), vec!["IGC/A"]);
             //
             let sig = &tbs_cert.signature;
             assert_eq!(sig.algorithm, oid! {1.2.840.113549.1.1.5});
@@ -128,6 +129,7 @@ fn test_x509_parser() {
 }
 
 #[test]
+#[wasm_bindgen_test]
 fn test_x509_no_extensions() {
     let empty = &b""[..];
     let res = parse_x509_certificate(NO_EXTENSIONS_DER);
@@ -144,6 +146,7 @@ fn test_x509_no_extensions() {
 }
 
 #[test]
+#[wasm_bindgen_test]
 fn test_parse_subject_public_key_info() {
     let res = SubjectPublicKeyInfo::from_der(&IGCA_DER[339..])
         .expect("Parse public key info")
@@ -157,6 +160,7 @@ fn test_parse_subject_public_key_info() {
 }
 
 #[test]
+#[wasm_bindgen_test]
 fn test_version_v1() {
     let (rem, cert) = parse_x509_certificate(V1).expect("Could not parse v1 certificate");
     assert!(rem.is_empty());
@@ -167,6 +171,7 @@ fn test_version_v1() {
 }
 
 #[test]
+#[wasm_bindgen_test]
 fn test_crl_parse() {
     match parse_x509_crl(CRL_DER) {
         Ok((e, cert)) => {
@@ -187,8 +192,14 @@ fn test_crl_parse() {
 
             let this_update = tbs_cert_list.this_update;
             let next_update = tbs_cert_list.next_update.unwrap();
-            let tu = OffsetDateTime::from_unix_timestamp(this_update.timestamp()).unwrap();
-            let nu = OffsetDateTime::from_unix_timestamp(next_update.timestamp()).unwrap();
+            let tu: DateTime<Utc> = DateTime::from_utc(
+                NaiveDateTime::from_timestamp(this_update.timestamp(), 0),
+                Utc,
+            );
+            let nu: DateTime<Utc> = DateTime::from_utc(
+                NaiveDateTime::from_timestamp(next_update.timestamp(), 0),
+                Utc,
+            );
             assert_eq!(tu.year(), 2013);
             assert_eq!(tu.month() as u8, 2);
             assert_eq!(tu.day(), 18);
@@ -196,8 +207,8 @@ fn test_crl_parse() {
             assert_eq!(nu.month() as u8, 2);
             assert_eq!(nu.day(), 18);
 
-            let revocation_date = datetime! {2013-02-18 10:22:12 UTC};
-            let invalidity_date = datetime! {2013-02-18 10:22:00 UTC};
+            let revocation_date = Utc.ymd(2013, 2, 18).and_hms(10, 22, 12);
+            let invalidity_date = Utc.ymd(2013, 2, 18).and_hms(10, 22, 0);
 
             let revoked_certs = &tbs_cert_list.revoked_certificates;
             let revoked_cert_0 = &revoked_certs[0];
@@ -260,6 +271,7 @@ fn test_crl_parse() {
 }
 
 #[test]
+#[wasm_bindgen_test]
 fn test_crl_parse_empty() {
     match parse_x509_crl(EMPTY_CRL_DER) {
         Ok((e, cert)) => {
@@ -301,11 +313,12 @@ fn test_crl_parse_empty() {
 }
 
 #[test]
+#[wasm_bindgen_test]
 fn test_crl_parse_minimal() {
     match parse_x509_crl(MINIMAL_CRL_DER) {
         Ok((e, crl)) => {
             assert!(e.is_empty());
-            let revocation_date = datetime! {1970-01-01 00:00:00 UTC};
+            let revocation_date = Utc.ymd(1970, 1, 1).and_hms(0, 0, 0);
             let revoked_certificates = &crl.tbs_cert_list.revoked_certificates;
             assert_eq!(revoked_certificates.len(), 1);
             let revoked_cert_0 = &revoked_certificates[0];
@@ -323,6 +336,7 @@ fn test_crl_parse_minimal() {
 }
 
 #[test]
+#[wasm_bindgen_test]
 fn test_duplicate_authority_info_access() {
     match parse_x509_certificate(DUPLICATE_VALUE_IN_AIA) {
         Ok((_, cert)) => {
@@ -351,6 +365,7 @@ fn test_duplicate_authority_info_access() {
 }
 
 #[test]
+#[wasm_bindgen_test]
 fn test_x509_parser_no_ext() {
     let mut parser = X509CertificateParser::new().with_deep_parse_extensions(false);
     let (_, x509) = parser.parse(IGCA_DER).expect("parsing failed");
