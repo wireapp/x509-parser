@@ -12,6 +12,7 @@ use crate::x509::{
 };
 
 use asn1_rs::FromDer;
+use chrono::Duration;
 use core::ops::Deref;
 use der_parser::ber::{parse_ber_optional, BitStringObject, Tag};
 use der_parser::der::*;
@@ -22,7 +23,6 @@ use nom::{Offset, Parser};
 use oid_registry::Oid;
 use oid_registry::*;
 use std::collections::HashMap;
-use time::Duration;
 
 /// An X.509 v3 Certificate.
 ///
@@ -56,7 +56,7 @@ use time::Duration;
 /// # match res {
 /// #     Ok((_rem, x509)) => {
 /// #         display_x509_info(&x509);
-/// #     },
+/// #     }
 /// #     _ => panic!("x509 parsing failed: {:?}", res),
 /// # }
 /// # }
@@ -99,11 +99,25 @@ impl<'a> X509Certificate<'a> {
             } else if *signature_alg == OID_PKCS1_SHA512WITHRSA {
                 &signature::RSA_PKCS1_2048_8192_SHA512
             } else if *signature_alg == OID_SIG_ECDSA_WITH_SHA256 {
-                self.get_ec_curve_sha(&spki.algorithm, 256)
-                    .ok_or(X509Error::SignatureUnsupportedAlgorithm)?
+                #[cfg(not(target_family = "wasm"))]
+                {
+                    self.get_ec_curve_sha(&spki.algorithm, 256)
+                        .ok_or(X509Error::SignatureUnsupportedAlgorithm)?
+                }
+                #[cfg(target_family = "wasm")]
+                {
+                    return Err(X509Error::SignatureUnsupportedAlgorithm);
+                }
             } else if *signature_alg == OID_SIG_ECDSA_WITH_SHA384 {
-                self.get_ec_curve_sha(&spki.algorithm, 384)
-                    .ok_or(X509Error::SignatureUnsupportedAlgorithm)?
+                #[cfg(not(target_family = "wasm"))]
+                {
+                    self.get_ec_curve_sha(&spki.algorithm, 384)
+                        .ok_or(X509Error::SignatureUnsupportedAlgorithm)?
+                }
+                #[cfg(target_family = "wasm")]
+                {
+                    return Err(X509Error::SignatureUnsupportedAlgorithm);
+                }
             } else if *signature_alg == OID_SIG_ED25519 {
                 &signature::ED25519
             } else {
@@ -121,6 +135,7 @@ impl<'a> X509Certificate<'a> {
     ///
     /// Not all algorithms are supported, we are limited to what `ring` supports.
     #[cfg(feature = "verify")]
+    #[cfg(not(target_family = "wasm"))]
     fn get_ec_curve_sha(
         &self,
         pubkey_alg: &AlgorithmIdentifier,
@@ -128,7 +143,6 @@ impl<'a> X509Certificate<'a> {
     ) -> Option<&'static dyn ring::signature::VerificationAlgorithm> {
         use ring::signature;
         let curve_oid = pubkey_alg.parameters.as_ref()?.as_oid().ok()?;
-        // let curve_oid = pubkey_alg.parameters.as_ref()?.as_oid().ok()?;
         if curve_oid == OID_EC_P256 {
             match sha_len {
                 256 => Some(&signature::ECDSA_P256_SHA256_ASN1),
@@ -187,7 +201,7 @@ impl<'a> FromDer<'a, X509Error> for X509Certificate<'a> {
     ///         let issuer = x509.issuer();
     ///         println!("X.509 Subject: {}", subject);
     ///         println!("X.509 Issuer: {}", issuer);
-    ///     },
+    ///     }
     ///     _ => panic!("x509 parsing failed: {:?}", res),
     /// }
     /// # }
@@ -229,7 +243,7 @@ impl<'a> FromDer<'a, X509Error> for X509Certificate<'a> {
 ///         let issuer = x509.issuer();
 ///         println!("X.509 Subject: {}", subject);
 ///         println!("X.509 Issuer: {}", issuer);
-///     },
+///     }
 ///     _ => panic!("x509 parsing failed: {:?}", res),
 /// }
 /// # }
@@ -745,7 +759,9 @@ impl Validity {
     /// Check the certificate time validity for the provided date/time
     #[inline]
     pub fn is_valid_at(&self, time: ASN1Time) -> bool {
-        time >= self.not_before && time <= self.not_after
+        let is_after_nbf = (time.0 - self.not_before.0).num_seconds().is_positive();
+        let is_before_naf = (self.not_after.0 - time.0).num_seconds().is_positive();
+        is_after_nbf && is_before_naf
     }
 
     /// Check the certificate time validity
@@ -806,23 +822,44 @@ impl<'a> UniqueIdentifier<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wasm_bindgen_test::*;
+    wasm_bindgen_test_configure!(run_in_browser);
 
     #[test]
+    #[wasm_bindgen_test]
     fn check_validity_expiration() {
         let mut v = Validity {
-            not_before: ASN1Time::now(),
-            not_after: ASN1Time::now(),
+            not_before: ASN1Time::from_timestamp(0),
+            not_after: ASN1Time::from_timestamp(0),
         };
         assert_eq!(v.time_to_expiration(), None);
-        v.not_after = (v.not_after + Duration::new(60, 0)).unwrap();
+        v.not_after = (ASN1Time::now() + Duration::seconds(60)).unwrap();
         assert!(v.time_to_expiration().is_some());
-        assert!(v.time_to_expiration().unwrap() <= Duration::new(60, 0));
+        assert!(v.time_to_expiration().unwrap() <= Duration::seconds(60));
         // The following assumes this timing won't take 10 seconds... I
         // think that is safe.
-        assert!(v.time_to_expiration().unwrap() > Duration::new(50, 0));
+        assert!(v.time_to_expiration().unwrap() > Duration::seconds(50));
     }
 
     #[test]
+    #[wasm_bindgen_test]
+    fn check_time_validity() {
+        let mut v = Validity {
+            not_before: ASN1Time::from_timestamp(0),
+            not_after: ASN1Time::from_timestamp(0),
+        };
+        // KO not_after is too past
+        assert!(!v.is_valid_at((ASN1Time::now() + Duration::seconds(60)).unwrap()));
+        v.not_after = (ASN1Time::now() + Duration::seconds(60)).unwrap();
+        // OK not_after is in future
+        assert!(v.is_valid_at(ASN1Time::now()));
+        v.not_before = (ASN1Time::now() + Duration::seconds(60)).unwrap();
+        // KO not_before is in future
+        assert!(!v.is_valid_at(ASN1Time::now()));
+    }
+
+    #[test]
+    #[wasm_bindgen_test]
     fn extension_duplication() {
         let extensions = vec![
             X509Extension::new(oid! {1.2}, true, &[], ParsedExtension::Unparsed),

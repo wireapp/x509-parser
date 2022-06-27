@@ -1,10 +1,14 @@
 use std::io::Cursor;
+use wasm_bindgen_test::*;
 use x509_parser::pem::{parse_x509_pem, Pem};
 use x509_parser::{parse_x509_certificate, x509::X509Version};
+
+wasm_bindgen_test_configure!(run_in_browser);
 
 static IGCA_PEM: &[u8] = include_bytes!("../assets/IGC_A.pem");
 
 #[test]
+#[wasm_bindgen_test]
 fn test_x509_parse_pem() {
     let (rem, pem) = parse_x509_pem(IGCA_PEM).expect("PEM parsing failed");
     // println!("{:?}", pem);
@@ -19,6 +23,7 @@ fn test_x509_parse_pem() {
 }
 
 #[test]
+#[wasm_bindgen_test]
 fn test_pem_read() {
     let reader = Cursor::new(IGCA_PEM);
     let (pem, bytes_read) = Pem::read(reader).expect("Reading PEM failed");
@@ -32,6 +37,7 @@ fn test_pem_read() {
 }
 
 #[test]
+#[wasm_bindgen_test]
 fn test_pem_not_pem() {
     let bytes = vec![0x1, 0x2, 0x3, 0x4, 0x5];
     let reader = Cursor::new(bytes);
@@ -42,6 +48,7 @@ fn test_pem_not_pem() {
 static NO_END: &[u8] = include_bytes!("../assets/no_end.pem");
 
 #[test]
+#[wasm_bindgen_test]
 fn test_pem_no_end() {
     let reader = Cursor::new(NO_END);
     let res = Pem::read(reader);

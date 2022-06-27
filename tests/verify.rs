@@ -1,5 +1,9 @@
 #![cfg(feature = "verify")]
 
+use wasm_bindgen_test::*;
+
+wasm_bindgen_test_configure!(run_in_browser);
+
 use x509_parser::parse_x509_certificate;
 
 static CA_DER: &[u8] = include_bytes!("../assets/IGC_A.der");
@@ -7,6 +11,7 @@ static CA_LETSENCRYPT_X3: &[u8] = include_bytes!("../assets/lets-encrypt-x3-cros
 static CERT_DER: &[u8] = include_bytes!("../assets/certificate.der");
 
 #[test]
+#[wasm_bindgen_test]
 fn test_signature_verification() {
     // for a root CA, verify self-signature
     let (_, x509_ca) = parse_x509_certificate(CA_DER).expect("could not parse certificate");
@@ -26,6 +31,7 @@ fn test_signature_verification() {
 static ED25519_DER: &[u8] = include_bytes!("../assets/ed25519.der");
 
 #[test]
+#[wasm_bindgen_test]
 fn test_signature_verification_ed25519() {
     // this certificate is self-signed
     let (_, x509_ca) = parse_x509_certificate(ED25519_DER).expect("could not parse certificate");

@@ -10,8 +10,6 @@ jobs:
       matrix:
         rust:
           - stable
-          - 1.53.0
-          - nightly
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -32,8 +30,6 @@ jobs:
       matrix:
         rust:
           - stable
-          - 1.53.0
-          - nightly
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -63,6 +59,15 @@ jobs:
         with:
           command: test
           args: --all-features
+
+  test-wasm:
+    name: WASM Test
+    needs: check-all-features
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: jetli/wasm-pack-action@v0.3.0
+      - run: wasm-pack test --headless --chrome --release
 
   fmt:
     name: Rustfmt
