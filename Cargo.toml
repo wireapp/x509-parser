@@ -58,12 +58,12 @@ features = ["wasm32_unknown_unknown_js"]
 optional = true
 
 [target.'cfg(target_family = "wasm")'.dependencies.chrono]
-version = "=0.4.19"
+version = "=0.4.22"
 features = ["wasmbind", "std", "clock"]
 default-features = false
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies.chrono]
-version = "=0.4.19"
+version = "=0.4.22"
 default-features = false
 features = ["std", "clock"]
 
