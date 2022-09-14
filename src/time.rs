@@ -165,8 +165,8 @@ impl Sub<ASN1Time> for ASN1Time {
     #[inline]
     fn sub(self, rhs: ASN1Time) -> Self::Output {
         if self.0 > rhs.0 {
-            let this = self.0.signed_duration_since(chrono::MIN_DATETIME);
-            let rhs = rhs.0.signed_duration_since(chrono::MIN_DATETIME);
+            let this = self.0.signed_duration_since(DateTime::<Utc>::MIN_UTC);
+            let rhs = rhs.0.signed_duration_since(DateTime::<Utc>::MIN_UTC);
             Some(this - rhs)
         } else {
             None
