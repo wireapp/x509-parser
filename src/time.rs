@@ -79,12 +79,16 @@ impl<'a> FromDer<'a, X509Error> for ASN1Time {
 pub(crate) fn parse_choice_of_time(i: &[u8]) -> ParseResult<DateTime<Utc>> {
     if let Ok((rem, t)) = UtcTime::from_der(i) {
         let dt = t.utc_adjusted_datetime()?;
-        let dt = DateTime::from_utc(NaiveDateTime::from_timestamp(dt.unix_timestamp(), 0), Utc);
+        let ndt = NaiveDateTime::from_timestamp_opt(dt.unix_timestamp(), 0)
+            .ok_or(Error::InvalidDateTime)?;
+        let dt = DateTime::from_utc(ndt, Utc);
         return Ok((rem, dt));
     }
     if let Ok((rem, t)) = GeneralizedTime::from_der(i) {
         let dt = t.utc_datetime()?;
-        let dt = DateTime::from_utc(NaiveDateTime::from_timestamp(dt.unix_timestamp(), 0), Utc);
+        let ndt = NaiveDateTime::from_timestamp_opt(dt.unix_timestamp(), 0)
+            .ok_or(Error::InvalidDateTime)?;
+        let dt = DateTime::from_utc(ndt, Utc);
         return Ok((rem, dt));
     }
     parse_malformed_date(i)

@@ -585,7 +585,7 @@ impl fmt::Display for ReasonFlags {
 pub(crate) mod parser {
     use crate::extensions::*;
     use crate::time::ASN1Time;
-    use asn1_rs::{GeneralizedTime, ParseResult};
+    use asn1_rs::{Error, GeneralizedTime, ParseResult};
     use chrono::{DateTime, NaiveDateTime, Utc};
     use der_parser::error::BerError;
     use der_parser::{oid::Oid, *};
@@ -1095,7 +1095,9 @@ pub(crate) mod parser {
     fn parse_invalidity_date(i: &[u8]) -> ParseResult<ParsedExtension> {
         let (rest, t) = GeneralizedTime::from_der(i)?;
         let dt = t.utc_datetime()?;
-        let dt = DateTime::from_utc(NaiveDateTime::from_timestamp(dt.unix_timestamp(), 0), Utc);
+        let ndt = NaiveDateTime::from_timestamp_opt(dt.unix_timestamp(), 0)
+            .ok_or(Error::InvalidDateTime)?;
+        let dt = DateTime::from_utc(ndt, Utc);
         Ok((rest, ParsedExtension::InvalidityDate(ASN1Time::new(dt))))
     }
 
