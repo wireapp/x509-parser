@@ -1,3 +1,9 @@
 .*.swp
 target
 Cargo.lock
+
+# Idea
+.idea
+*.iws
+*.iml
+*.ipr
