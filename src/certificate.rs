@@ -11,8 +11,6 @@ use crate::x509::{
     X509Version,
 };
 
-#[cfg(feature = "verify")]
-use crate::verify::verify_signature;
 use asn1_rs::{BitString, FromDer, OptTaggedExplicit};
 use chrono::Duration;
 use core::ops::Deref;
@@ -21,7 +19,7 @@ use der_parser::der::*;
 use der_parser::error::*;
 use der_parser::num_bigint::BigUint;
 use der_parser::*;
-use nom::{Offset, Parser};
+use nom::{AsBytes, Offset, Parser};
 use oid_registry::Oid;
 use oid_registry::*;
 use std::collections::HashMap;
@@ -87,6 +85,7 @@ impl<'a> X509Certificate<'a> {
         &self,
         public_key: Option<&SubjectPublicKeyInfo>,
     ) -> Result<(), X509Error> {
+        use ring::signature;
         let spki = public_key.unwrap_or_else(|| self.public_key());
         let signature_alg = &self.signature_algorithm.algorithm;
         // identify verification algorithm
@@ -125,11 +124,16 @@ impl<'a> X509Certificate<'a> {
                 return Err(X509Error::SignatureUnsupportedAlgorithm);
             };
         // get public key
-        let key = signature::UnparsedPublicKey::new(verification_alg, spki.subject_public_key.data);
+        let key = signature::UnparsedPublicKey::new(
+            verification_alg,
+            spki.subject_public_key.data.clone(),
+        );
         // verify signature
-        let sig = self.signature_value.data;
-        key.verify(self.tbs_certificate.raw, sig)
-            .or(Err(X509Error::SignatureVerificationError))
+        key.verify(
+            self.tbs_certificate.raw,
+            self.signature_value.data.as_bytes(),
+        )
+        .or(Err(X509Error::SignatureVerificationError))
     }
 
     /// Find the verification algorithm for the given EC curve and SHA digest size
@@ -820,8 +824,8 @@ mod tests {
     #[wasm_bindgen_test]
     fn check_validity_expiration() {
         let mut v = Validity {
-            not_before: ASN1Time::from_timestamp(0),
-            not_after: ASN1Time::from_timestamp(0),
+            not_before: ASN1Time::from_timestamp(0).unwrap(),
+            not_after: ASN1Time::from_timestamp(0).unwrap(),
         };
         assert_eq!(v.time_to_expiration(), None);
         v.not_after = (ASN1Time::now() + Duration::seconds(60)).unwrap();
@@ -836,8 +840,8 @@ mod tests {
     #[wasm_bindgen_test]
     fn check_time_validity() {
         let mut v = Validity {
-            not_before: ASN1Time::from_timestamp(0),
-            not_after: ASN1Time::from_timestamp(0),
+            not_before: ASN1Time::from_timestamp(0).unwrap(),
+            not_after: ASN1Time::from_timestamp(0).unwrap(),
         };
         // KO not_after is too past
         assert!(!v.is_valid_at((ASN1Time::now() + Duration::seconds(60)).unwrap()));

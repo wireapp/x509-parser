@@ -5,13 +5,11 @@ use crate::x509::{
     parse_signature_value, AlgorithmIdentifier, SubjectPublicKeyInfo, X509Name, X509Version,
 };
 
-#[cfg(feature = "verify")]
-use crate::verify::verify_signature;
 use asn1_rs::{BitString, FromDer};
 use der_parser::der::*;
 use der_parser::oid::Oid;
 use der_parser::*;
-use nom::Offset;
+use nom::{AsBytes, Offset};
 #[cfg(feature = "verify")]
 use oid_registry::*;
 #[cfg(feature = "verify")]
@@ -110,11 +108,16 @@ impl<'a> X509CertificationRequest<'a> {
                 return Err(X509Error::SignatureUnsupportedAlgorithm);
             };
         // get public key
-        let key = signature::UnparsedPublicKey::new(verification_alg, spki.subject_public_key.data);
+        let key = signature::UnparsedPublicKey::new(
+            verification_alg,
+            spki.subject_public_key.data.clone(),
+        );
         // verify signature
-        let sig = self.signature_value.data;
-        key.verify(self.certification_request_info.raw, sig)
-            .or(Err(X509Error::SignatureVerificationError))
+        key.verify(
+            self.certification_request_info.raw,
+            self.signature_value.data.as_bytes(),
+        )
+        .or(Err(X509Error::SignatureVerificationError))
     }
 }
 
